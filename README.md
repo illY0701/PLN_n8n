@@ -9,7 +9,7 @@ O sistema recebe textos via **Webhook**, realiza a análise de sentimento, ident
 ## 🎥 Vídeo Demonstrativo do Projeto
 
 👉 **Assista ao vídeo completo aqui:**  
-📌 *[coloque o link do seu vídeo abaixo](https://youtu.be/elhmm7-OnNY)*
+📌 *[Vídeo](https://youtu.be/elhmm7-OnNY)*
 
 
 ---
