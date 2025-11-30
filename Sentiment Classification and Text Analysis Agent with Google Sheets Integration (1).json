@@ -1,0 +1,294 @@
+{
+  "name": "Sentiment Classification and Text Analysis Agent with Google Sheets Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sentiment-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7e308c46-7060-47c4-9801-e3cb55685447",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2752,
+        256
+      ],
+      "webhookId": "14b6debb-6e67-4bb6-bfea-21c180f1b0ff"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "inputText",
+              "value": "={{ $json.body.text }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d02e6d06-7bbd-42cf-aae9-f355f2461a12",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2976,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.inputText }}",
+        "options": {
+          "systemMessage": "You are a sentiment analysis expert. Analyze the provided text and determine:\n1. Sentiment: Classify as \"positivo\", \"negativo\", or \"neutro\"\n2. Main Theme: Identify the primary topic or subject of the text in a few words\n\nReturn your response in the following JSON format:\n{\n  \"sentiment\": \"positivo/negativo/neutro\",\n  \"theme\": \"main theme description\",\n  \"confidence\": \"high/medium/low\"\n}\n\nBe concise and accurate in your analysis."
+        }
+      },
+      "id": "c32f1789-7c37-43e5-818d-ddbbbfd65db3",
+      "name": "Sentiment Analysis Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3200,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI Response and extract sentiment analysis data\nconst items = $input.all();\nconst outputItems = [];\n\nfor (const item of items) {\n  try {\n    // Get the AI response from the previous node\n    const aiResponse = item.json.output || item.json.text || item.json.response || '';\n    \n    let parsedData;\n    \n    // Try to parse as JSON first\n    try {\n      // Check if response is already an object\n      if (typeof aiResponse === 'object') {\n        parsedData = aiResponse;\n      } else {\n        // Try to extract JSON from markdown code blocks or plain text\n        const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/) || \n                         aiResponse.match(/\\{[\\s\\S]*\\}/);\n        \n        if (jsonMatch) {\n          const jsonString = jsonMatch[1] || jsonMatch[0];\n          parsedData = JSON.parse(jsonString.trim());\n        } else {\n          throw new Error('No JSON found in response');\n        }\n      }\n    } catch (parseError) {\n      // If JSON parsing fails, try to extract data using regex\n      const sentimentMatch = aiResponse.match(/sentiment[\"']?\\s*:\\s*[\"']?([^,\"'}\\n]+)/i);\n      const themeMatch = aiResponse.match(/theme[\"']?\\s*:\\s*[\"']?([^,\"'}\\n]+)/i);\n      const confidenceMatch = aiResponse.match(/confidence[\"']?\\s*:\\s*[\"']?([0-9.]+)/i);\n      \n      parsedData = {\n        sentiment: sentimentMatch ? sentimentMatch[1].trim() : 'unknown',\n        theme: themeMatch ? themeMatch[1].trim() : 'unknown',\n        confidence: confidenceMatch ? parseFloat(confidenceMatch[1]) : 0\n      };\n    }\n    \n    // Extract and normalize the data\n    const sentiment = parsedData.sentiment || parsedData.Sentiment || 'unknown';\n    const theme = parsedData.theme || parsedData.Theme || parsedData.topic || 'unknown';\n    const confidence = parseFloat(parsedData.confidence || parsedData.Confidence || 0);\n    \n    // Preserve inputText and timestamp from previous node\n    const inputText = item.json.inputText || item.json.text || item.json.input || '';\n    const timestamp = item.json.timestamp || new Date().toISOString();\n    \n    // Add parsed data to output with all necessary fields for Google Sheets\n    outputItems.push({\n      json: {\n        inputText: inputText,\n        sentiment: sentiment,\n        theme: theme,\n        confidence: confidence,\n        timestamp: timestamp,\n        originalText: inputText,\n        rawResponse: aiResponse\n      }\n    });\n    \n  } catch (error) {\n    // Handle errors gracefully\n    console.error('Error parsing AI response:', error);\n    \n    // Preserve inputText and timestamp even in error case\n    const inputText = item.json.inputText || item.json.text || item.json.input || '';\n    const timestamp = item.json.timestamp || new Date().toISOString();\n    \n    outputItems.push({\n      json: {\n        inputText: inputText,\n        sentiment: 'error',\n        theme: 'parsing_failed',\n        confidence: 0,\n        timestamp: timestamp,\n        error: error.message,\n        rawResponse: item.json.output || item.json.text || ''\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "id": "a42f0ee8-ab00-47c4-83c4-ef5c5da1ec34",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3552,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1eaBsOVIkyu217aBpfdOvsx5qP3RSqCLYuoHamxYyVV8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Página1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Text": "={{ $json.inputText }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Theme": "={{ $json.theme }}",
+            "Confidence": "={{ $json.confidence }}",
+            "Timestamp": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [
+            "Text"
+          ],
+          "schema": [
+            {
+              "id": "Text",
+              "displayName": "Text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Theme",
+              "displayName": "Theme",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6697178a-deba-4dfd-974f-19ca8e6d97ea",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3776,
+        256
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IjrqvrLOmeoaEGCX",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"sentiment\": {{ $json.sentiment }},\n  \"theme\": {{ $json.theme }},\n  \"confidence\": {{ $json.confidence }}\n}",
+        "options": {}
+      },
+      "id": "d09f488d-dbbf-4c6a-b4ca-5807454eb9b6",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        4000,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3272,
+        480
+      ],
+      "id": "13f0b672-e172-4274-9afc-4306ef3737a5",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "V5e2PLE8fgYQjxxV",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Sentiment Analysis Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analysis Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sentiment Analysis Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "066d702b-08ba-4b0f-86c7-4d8283ada192",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4229e99ee9695de4321f82d2f01c226243733168048cbb961befce11ee712bd8"
+  },
+  "id": "ej00X56rIs3ogpej",
+  "tags": []
+}
